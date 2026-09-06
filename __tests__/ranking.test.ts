@@ -79,7 +79,7 @@ describe("rankProduceList", () => {
 
   it("adds a rankScore field to each item", () => {
     const produceList = [
-      { id: "1", name: "A", category: "Fruits", price: 50, grade: null as const, latitude: null as const, longitude: null as const },
+      { id: "1", name: "A", category: "Fruits", price: 50, grade: null, latitude: null, longitude: null },
     ];
     const ranked = rankProduceList(produceList);
     expect(ranked[0]).toHaveProperty("rankScore");

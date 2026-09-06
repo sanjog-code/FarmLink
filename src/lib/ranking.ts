@@ -8,7 +8,6 @@ interface RankedProduce {
   grade: string | null;
   latitude: number | null;
   longitude: number | null;
-  score: number;
 }
 
 export function calculateRankScore(
