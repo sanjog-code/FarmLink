@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CONSUMER
+  FARMER
+  BULK_BUYER
+  ADMIN
+}
+
+enum ProduceStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum ProduceGrade {
+  A_PLUS
+  A
+  B
+  C
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  ORDER
+  PRODUCE
+  PAYMENT
+  SYSTEM
+  GRADE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  mobile        String?   @unique
+  password      String
+  name          String
+  role          UserRole  @default(CONSUMER)
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  consumer      Consumer?
+  farmer        Farmer?
+  bulkBuyer     BulkBuyer?
+  admin         Admin?
+  notifications Notification[]
+  cart          CartItem[]
+  wishlist      WishlistItem[]
+  reviews       Review[]
+}
+
+model Consumer {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  address   String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
+  addresses Address[]
+  cart      Cart[]
+}
+
+model Farmer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  farmerId    String   @unique
+  state       String
+  district    String
+  village     String
+  farmSize    Float
+  latitude    Float?
+  longitude   Float?
+  certifications String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produce     Produce[]
+  bulkListings BulkListing[]
+  orders      Order[]   @relation("FarmerOrders")
+}
+
+model BulkBuyer {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  firmName        String
+  gstNumber       String   @unique
+  businessAddress String
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bulkOrders      BulkOrder[]
+  orders          Order[]
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Produce {
+  id          String        @id @default(cuid())
+  farmerId    String
+  name        String
+  category    String
+  description String?
+  quantity    Float
+  unit        String        @default("kg")
+  price       Float
+  harvestDate DateTime
+  organic     Boolean       @default(false)
+  status      ProduceStatus @default(DRAFT)
+  grade       ProduceGrade?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  farmer      Farmer        @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  images      ProduceImage[]
+  gradeDetail ProduceGradeDetail?
+  orderItems  OrderItem[]
+  bulkListings BulkListing[]
+  reviews     Review[]
+  carts       Cart[]
+  cartItems   CartItem[]
+  wishlistItems WishlistItem[]
+}
+
+model ProduceImage {
+  id        String  @id @default(cuid())
+  produceId String
+  url       String
+  isPrimary Boolean @default(false)
+
+  produce   Produce @relation(fields: [produceId], references: [id], onDelete: Cascade)
+}
+
+model ProduceGradeDetail {
+  id               String       @id @default(cuid())
+  produceId        String       @unique
+  grade            ProduceGrade
+  qualityScore     Float
+  colorUniformity  Float
+  surfaceDefects   Float
+  freshnessScore   Float
+  analyzedAt       DateTime     @default(now())
+
+  produce          Produce      @relation(fields: [produceId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  consumerId String
+  label      String  @default("Home")
+  address    String
+  city       String
+  state      String
+  pincode    String
+  latitude   Float?
+  longitude  Float?
+  isDefault  Boolean @default(false)
+
+  consumer   Consumer @relation(fields: [consumerId], references: [id], onDelete: Cascade)
+  orders     Order[]
+}
+
+model Cart {
+  id         String  @id @default(cuid())
+  consumerId String
+  produceId  String
+  quantity   Float
+
+  consumer   Consumer @relation(fields: [consumerId], references: [id], onDelete: Cascade)
+  produce    Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+
+  @@unique([consumerId, produceId])
+}
+
+model CartItem {
+  id     String @id @default(cuid())
+  userId String
+  produceId String
+  quantity Int  @default(1)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produce Produce @relation(fields: [produceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, produceId])
+}
+
+model WishlistItem {
+  id     String @id @default(cuid())
+  userId String
+  produceId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produce Produce @relation(fields: [produceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, produceId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  consumerId    String?
+  farmerId      String
+  bulkBuyerId   String?
+  addressId     String?
+  status        OrderStatus @default(PENDING)
+  totalAmount   Float
+  deliveryFee   Float       @default(0)
+  paymentStatus PaymentStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  consumer      Consumer?   @relation(fields: [consumerId], references: [id])
+  farmer        Farmer      @relation("FarmerOrders", fields: [farmerId], references: [id])
+  bulkBuyer     BulkBuyer?  @relation(fields: [bulkBuyerId], references: [id])
+  address       Address?    @relation(fields: [addressId], references: [id])
+  items         OrderItem[]
+  logistics     Logistics?
+  transaction   Transaction?
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  produceId String
+  quantity  Float
+  price     Float
+
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  produce   Produce @relation(fields: [produceId], references: [id])
+}
+
+model BulkListing {
+  id          String   @id @default(cuid())
+  farmerId    String
+  produceId   String
+  moq         Float
+  bulkPrice   Float
+  availableQty Float
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farmer      Farmer   @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  produce     Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+  bulkOrders  BulkOrder[]
+}
+
+model BulkOrder {
+  id             String      @id @default(cuid())
+  bulkBuyerId    String
+  bulkListingId  String
+  quantity       Float
+  totalAmount    Float
+  status         OrderStatus @default(PENDING)
+  negotiationNote String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  bulkBuyer      BulkBuyer   @relation(fields: [bulkBuyerId], references: [id])
+  bulkListing    BulkListing @relation(fields: [bulkListingId], references: [id])
+}
+
+model Logistics {
+  id          String      @id @default(cuid())
+  orderId     String      @unique
+  trackingId  String?     @unique
+  status      OrderStatus @default(PENDING)
+  carrier     String?
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+  latitude    Float?
+  longitude   Float?
+  updatedAt   DateTime    @updatedAt
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id         String        @id @default(cuid())
+  orderId    String        @unique
+  amount     Float
+  method     String        @default("upi")
+  status     PaymentStatus @default(PENDING)
+  reference  String?
+  createdAt  DateTime      @default(now())
+
+  order      Order         @relation(fields: [orderId], references: [id])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  produceId  String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  produce    Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, produceId])
+}
